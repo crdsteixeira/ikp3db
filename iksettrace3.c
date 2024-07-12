@@ -46,7 +46,7 @@ get_frame_trace(PyFrameObject *frame)
     PyObject *trace_func = NULL;
     PyObject *locals_dict = PyFrame_GetLocals(frame);
     if (locals_dict && PyDict_Check(locals_dict)) {
-        trace_func = PyDict_GetItemString(locals_dict, "_tracefunc");
+        trace_func = PyDict_GetItemString(locals_dict, "__tracefunc__");
         Py_XINCREF(trace_func);
     }
     return trace_func;
@@ -58,9 +58,9 @@ set_frame_trace(PyFrameObject *frame, PyObject *trace_func)
     PyObject *locals_dict = PyFrame_GetLocals(frame);
     if (locals_dict && PyDict_Check(locals_dict)) {
         if (trace_func) {
-            PyDict_SetItemString(locals_dict, "_tracefunc", trace_func);
+            PyDict_SetItemString(locals_dict, "__tracefunc__", trace_func);
         } else {
-            PyDict_DelItemString(locals_dict, "_tracefunc");
+            PyDict_DelItemString(locals_dict, "__tracefunc__");
         }
     }
 }
@@ -96,13 +96,12 @@ trace_trampoline(PyObject *self, PyFrameObject *frame,
 {
     PyObject *callback;
     PyObject *result;
-    
+
     if (what == PyTrace_CALL)
         callback = self;
-    else {
+    else
         callback = get_frame_trace(frame);
-    }
-    
+
     if (callback == NULL)
         return 0;
 
@@ -120,7 +119,7 @@ trace_trampoline(PyObject *self, PyFrameObject *frame,
         Py_DECREF(result);
         Py_CLEAR(callback);
     }
-    
+
     return 0;
 }
 
@@ -152,7 +151,7 @@ IK_SetTrace(Py_tracefunc func, PyObject *arg)
     PyInterpreterState *interp = PyInterpreterState_Head();
     PyThreadState *loopThreadState = PyInterpreterState_ThreadHead(interp);
     while(loopThreadState) {
-         if((unsigned long)loopThreadState->thread_id != (unsigned long)debuggerThreadIdent) {
+        if ((unsigned long)loopThreadState->thread_id != (unsigned long)debuggerThreadIdent) {
             PyObject *temp = loopThreadState->c_traceobj;
             Py_XINCREF(arg);
             loopThreadState->c_tracefunc = NULL;
