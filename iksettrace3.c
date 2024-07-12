@@ -41,6 +41,31 @@ static int trace_init(void)
 }
 
 static PyObject *
+get_frame_trace(PyFrameObject *frame)
+{
+    PyObject *trace_func = NULL;
+    PyObject *locals_dict = PyFrame_GetLocals(frame);
+    if (locals_dict && PyDict_Check(locals_dict)) {
+        trace_func = PyDict_GetItemString(locals_dict, "_tracefunc");
+        Py_XINCREF(trace_func);
+    }
+    return trace_func;
+}
+
+static void
+set_frame_trace(PyFrameObject *frame, PyObject *trace_func)
+{
+    PyObject *locals_dict = PyFrame_GetLocals(frame);
+    if (locals_dict && PyDict_Check(locals_dict)) {
+        if (trace_func) {
+            PyDict_SetItemString(locals_dict, "_tracefunc", trace_func);
+        } else {
+            PyDict_DelItemString(locals_dict, "_tracefunc");
+        }
+    }
+}
+
+static PyObject *
 call_trampoline(PyObject* callback,
                 PyFrameObject *frame, int what, PyObject *arg)
 {
@@ -71,28 +96,33 @@ trace_trampoline(PyObject *self, PyFrameObject *frame,
 {
     PyObject *callback;
     PyObject *result;
-
+    
     if (what == PyTrace_CALL)
         callback = self;
-    else
-        callback = frame->f_trace;
+    else {
+        callback = get_frame_trace(frame);
+    }
+    
     if (callback == NULL)
         return 0;
+
     result = call_trampoline(callback, frame, what, arg);
     if (result == NULL) {
         PyEval_SetTrace(NULL, NULL);
-        Py_CLEAR(frame->f_trace);
+        Py_CLEAR(callback);
         return -1;
     }
+
     if (result != Py_None) {
-        Py_XSETREF(frame->f_trace, result);
-    }
-    else {
+        set_frame_trace(frame, result);
         Py_DECREF(result);
+    } else {
+        Py_DECREF(result);
+        Py_CLEAR(callback);
     }
+    
     return 0;
 }
-
 
 /* 
  * iksettrace3 'real' functions
@@ -122,7 +152,7 @@ IK_SetTrace(Py_tracefunc func, PyObject *arg)
     PyInterpreterState *interp = PyInterpreterState_Head();
     PyThreadState *loopThreadState = PyInterpreterState_ThreadHead(interp);
     while(loopThreadState) {
-        if(loopThreadState->thread_id!=debuggerThreadIdent) {
+         if((unsigned long)loopThreadState->thread_id != (unsigned long)debuggerThreadIdent) {
             PyObject *temp = loopThreadState->c_traceobj;
             Py_XINCREF(arg);
             loopThreadState->c_tracefunc = NULL;
