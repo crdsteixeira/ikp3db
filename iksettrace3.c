@@ -63,6 +63,8 @@ set_frame_trace(PyFrameObject *frame, PyObject *trace_func)
             PyDict_DelItemString(locals_dict, "__tracefunc__");
         }
     }
+
+    Py_XDECREF(trace_func);
 }
 
 static PyObject *
@@ -106,18 +108,11 @@ trace_trampoline(PyObject *self, PyFrameObject *frame,
         return 0;
 
     result = call_trampoline(callback, frame, what, arg);
+    set_frame_trace(frame, result);
+
     if (result == NULL) {
         PyEval_SetTrace(NULL, NULL);
-        Py_CLEAR(callback);
         return -1;
-    }
-
-    if (result != Py_None) {
-        set_frame_trace(frame, result);
-        Py_DECREF(result);
-    } else {
-        Py_DECREF(result);
-        Py_CLEAR(callback);
     }
 
     return 0;
